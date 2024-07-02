@@ -1,0 +1,54 @@
+import nmap
+import requests
+import socket
+
+class VulnerabilityScanner:
+    def _init_(self, target):
+        self.target = target
+        self.nm = nmap.PortScanner()
+        self.vulnerabilities = []
+
+    def scan_open_ports(self):
+        self.nm.scan(self.target, '1-1024')  # Scanning first 1024 ports
+        for host in self.nm.all_hosts():
+            for proto in self.nm[host].all_protocols():
+                ports = self.nm[host][proto].keys()
+                for port in ports:
+                    state = self.nm[host][proto][port]['state']
+                    if state == 'open':
+                        self.vulnerabilities.append(f"Open port: {port}/{proto}")
+
+    def check_web_server_headers(self):
+        try:
+            response = requests.get(f"http://{self.target}")
+            headers = response.headers
+            server_header = headers.get('Server', 'Unknown')
+            if "nginx" in server_header.lower() or "apache" in server_header.lower():
+                self.vulnerabilities.append(f"Web server software detected: {server_header}")
+                # In a real-world scenario, compare with known vulnerable versions
+            if "X-Powered-By" in headers:
+                self.vulnerabilities.append("X-Powered-By header present, revealing server technology")
+        except requests.RequestException as e:
+            self.vulnerabilities.append(f"HTTP request failed: {e}")
+
+    def check_dns_configuration(self):
+        try:
+            socket.gethostbyname(self.target)
+        except socket.error:
+            self.vulnerabilities.append("DNS resolution failed")
+
+    def scan(self):
+        self.scan_open_ports()
+        self.check_web_server_headers()
+        self.check_dns_configuration()
+
+        return self.vulnerabilities
+
+# Example Usage
+target = "example.com"  # Replace with the actual target
+scanner = VulnerabilityScanner(target)
+vulnerabilities = scanner.scan()
+
+print("Vulnerabilities found:")
+for vulnerability in vulnerabilities:
+    print(vulnerability)
